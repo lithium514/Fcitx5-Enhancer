@@ -1,0 +1,61 @@
+name: Build Mod
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: 21
+          distribution: temurin
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake libwayland-dev wayland-protocols pkg-config
+
+      - name: Build native base library
+        run: |
+          mkdir -p build
+          cd build
+          cmake ..
+          make
+        working-directory: src/native/base
+
+      - name: Build native wayland library
+        run: |
+          mkdir -p build
+          cd build
+          cmake ..
+          make
+        working-directory: src/native/wayland
+
+      - name: Grant execute permission for Gradle wrapper
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew build --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fcitx5-enhancer
+          path: |
+            fabricWrapper/build/libs/
+            src/native/base/build/libfcitx5_detector.so
+            src/native/wayland/build/libwayland_support.so
